@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+# Straight up Riftin' it and by "it", haha, well, let's justr say,
+# my Wizard (2)
+
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+# DUCT-TAPE: Stub for SteamAdapter
+if [ ! -f steamworks.py ]; then
+    cat > steamworks.py <<'EOF'
+class STEAMWORKS:
+    def __init__(self, *args, **kwargs):
+        raise RuntimeError("Steam support disabled (Linux stub)")
+EOF
+fi
+
+# Install dependencies and launch
+uv python install 3.8
+exec uv run --no-project --python 3.8 \
+	--no-build-package tcod \
+	--with "tcod>=11.9,<13" \
+	--with pygame \
+	--with dill==0.3.1.1 \
+	--with objgraph==3.5.0 \
+	--with "numpy<1.25" \
+	python RiftWizard2.py "$@"
