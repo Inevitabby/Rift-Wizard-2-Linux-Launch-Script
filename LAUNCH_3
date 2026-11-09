@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+# Straight up Riftin' it and by "it", haha, well, let's just say,
+# my Wizard (3)
+
+set -euo pipefail
+cd "$(dirname "$(readlink -f "$0")")"
+
+SHIM_DIR="$PWD/.linux-shim"
+mkdir -p "$SHIM_DIR"
+
+# Stub for SteamAdapter
+cat > "$SHIM_DIR/steamworks.py" <<'EOF'
+class STEAMWORKS:
+    def __init__(self, *args, **kwargs):
+        raise RuntimeError("Steam support disabled (Linux stub)")
+EOF
+
+# Redirect the hardcoded SDL2.dll to pygame's bundled Linux SDL2
+cat > "$SHIM_DIR/sitecustomize.py" <<'EOF'
+import ctypes, glob, os, sys
+
+if sys.platform != "win32":
+    _CDLL = ctypes.CDLL
+
+    def _find_bundled_sdl():
+        import importlib.util
+        pg_dir = os.path.dirname(importlib.util.find_spec("pygame").origin)
+        search = (os.path.join(os.path.dirname(pg_dir), "pygame.libs"), pg_dir)
+        for d in search:
+            matches = sorted(glob.glob(os.path.join(d, "libSDL2-*")))
+            if matches:
+                return matches[0]
+        raise FileNotFoundError("Bundled SDL2 not found in: " + ", ".join(search))
+
+    class CDLL(_CDLL):
+        def __init__(self, name, *args, **kwargs):
+            if name and os.path.basename(str(name)).lower() == "sdl2.dll":
+                name = _find_bundled_sdl()
+            super().__init__(name, *args, **kwargs)
+
+    ctypes.CDLL = CDLL
+EOF
+
+export PYTHONPATH="$SHIM_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export PYGAME_HIDE_SUPPORT_PROMPT=1
+
+uv python install "3.10"
+exec uv run --no-project --python "3.10" \
+	--no-build \
+	--with numpy==2.2.6 \
+	--with pygame==2.6.1 \
+	--with tcod==18.1.0 \
+	--with dill==0.4.0 \
+	--with objgraph==3.6.2 \
+	--with typing_extensions==4.14.0 \
+	python RiftWizard3.py "$@"
